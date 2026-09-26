@@ -21,6 +21,15 @@ def run_artifact_stage(command, expected_files):
             "Check the first ERROR/traceback above, fix it, and rerun preparation.")
 
 
+def validate_obfuscation_context(params, context):
+    # Official --task_hints moves task instructions into training user queries,
+    # leaving only the original PLeak context between the pad delimiters.
+    if params.get('system_prompt') != f'<|pad|>{context}<|pad|>':
+        raise ValueError(
+            'Existing obfuscation artifact has a different system prompt (possibly '
+            'an added task instruction). Use a fresh --output-dir to retrain it.')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('dataset')
@@ -87,11 +96,12 @@ def main():
             candidates_path = directory / 'obfuscated_system_prompt_list.pt'
             if not params_path.is_file() or not candidates_path.is_file():
                 run_artifact_stage([sys.executable, 'obfuscate.py', '--model_name', model_id,
-                    '--system_prompt', context, '--obfuscation_method', args.method,
+                    '--system_prompt', context, '--task_hints', '--obfuscation_method', args.method,
                     '--dataset_name', args.obfuscation_dataset,
                     '--dataset_size', str(args.obfuscation_dataset_size),
                     '--output_dir', str(directory)], [params_path, candidates_path])
             params = json.loads(params_path.read_text())
+            validate_obfuscation_context(params, context)
             if params['model_name'] != model_id or params['obfuscation_method'] != args.method:
                 raise ValueError('Existing obfuscation run has a different model/method; use a new directory')
             if not tensor_path.exists():

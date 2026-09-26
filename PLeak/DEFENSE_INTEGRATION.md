@@ -60,10 +60,11 @@ Bundled sources were checked against the official repositories:
   the threshold. The mitigation in this source regenerates **without a system
   prompt**, and its actual response is returned to PLeak.
 
-The only upstream defense source change is a compatibility shim in
+The upstream defense source changes are compatibility shims in
 `src/model.py`: pass `mean_resizing=False` only when the installed Transformers
 resize method supports it. Older versions retain their existing random
-initialization. No defense algorithm is modified. Scoped, locked backend bindings
+initialization. `return_legacy_cache=False` is also passed only when supported
+by the loaded model generation configuration. No defense algorithm is modified. Scoped, locked backend bindings
 adapt PromptKeeper's model access and prompt serialization to PLeak; they are
 restored even on exceptions. Offline fit loading replaces its fixed relative
 cache directory. Calibrations must be produced with this same PLeak backend;
@@ -243,3 +244,13 @@ logs an error and exits with status zero. An incomplete run missing `params.json
 or its candidate tensors is retried; no artifact-directory deletion is needed.
 This fixes the reported resize error, not a guarantee that every other API in
 the bundled defense supports historical Transformers versions.
+
+### Older Transformers: `return_legacy_cache` error
+
+The generation bridge now omits this cache-format option when it is absent from
+the model generation configuration. Logits, decoding settings, and the
+obfuscation objective are unchanged. Preparation also passes the official
+`--task_hints` flag: task instructions go into obfuscation-training user queries
+instead of being prepended to the protected PLeak context. Existing artifacts
+with extra system instructions are rejected; retrain those in a new directory.
+Failed runs with no params/candidate artifacts can simply be retried.

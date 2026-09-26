@@ -174,6 +174,10 @@ class Model():
             model_input_args["inputs_embeds"] = input_tensor
         else:
             model_input_args["input_ids"] = input_tensor
+        # Cache return format is optional and is absent in older Transformers.
+        cache_kwargs = {}
+        if hasattr(self.model.generation_config, "return_legacy_cache"):
+            cache_kwargs["return_legacy_cache"] = False
         with torch.no_grad():
             output = self.model.generate(
                 **model_input_args,
@@ -188,7 +192,7 @@ class Model():
                 top_p = None,
                 top_k = None,
                 temperature = None,
-                return_legacy_cache=False
+                **cache_kwargs
             )
         return output
 
