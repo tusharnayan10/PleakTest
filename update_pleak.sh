@@ -15,7 +15,7 @@ if [[ -n "$(git -C "$destination" status --porcelain)" ]]; then
     echo 'Commit or stash local changes before updating; no files were changed.' >&2
     exit 1
 fi
-origin="$(git -C "$destination" remote get-url origin)"
+origin="$(git -C "$destination" config --get remote.origin.url)"
 case "$origin" in
     https://github.com/tusharnayan10/PleakTest.git|https://github.com/tusharnayan10/PleakTest|git@github.com:tusharnayan10/PleakTest.git) ;;
     *) echo "Unexpected origin: $origin" >&2; exit 1 ;;
