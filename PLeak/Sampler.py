@@ -8,20 +8,30 @@ from util.template import TextTemplate
 import re
 from Defense import Defense
 from nltk import pos_tag, word_tokenize
+from sentence_transformers import SentenceTransformer
+from DefenseAdapters import make_wrapper
 
 
 class Sampler():
-    def __init__(self, target_model='gptj', template=None, defense='None'):
+    def __init__(self, target_model='gptj', template=None, defense='None', defense_config=None):
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         self.target_model = target_model
         self.template = TextTemplate(prefix_1='') if template is None else template
         modelFactory = ModelFactory()
+        self.model_id = modelFactory.MODEL_CONF[target_model]['alias']
         self.model = modelFactory.get_model(target_model)
         self.tokenizer = modelFactory.get_tokenizer(target_model)
         self.defender = Defense()
         self.defense = defense
+        self.victim = make_wrapper(self, defense, defense_config)
         self.model_sim = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 
+
+    def generation_kwargs(self):
+        kwargs = {'num_beams': 3, 'pad_token_id': self.tokenizer.eos_token_id}
+        if 'llama' in self.target_model:
+            kwargs.update(do_sample=True, temperature=0.9, top_p=0.6)
+        return kwargs
 
     def sample_sequence(self, target_texts, triggers, length=50):
         results = []
@@ -41,14 +51,19 @@ class Sampler():
             kwargs['input_ids'] = target_tokens.input_ids
             with torch.no_grad():
                 try:
-                    gt = self.model.generate(**kwargs)
-                    generation = self.tokenizer.decode(gt[0, target_length:])
+                    if self.victim is None:
+                        gt = self.model.generate(**kwargs)
+                        generation = self.tokenizer.decode(gt[0, target_length:])
+                    else:
+                        generation = self.victim.generate(target_text, self.template.format_trigger(triggers), kwargs)
                     generation = self.postprocess(generation, triggers)
-                    generation = self.defender.defend(self.defense, target=target_text, output=generation)
+                    generation = self.defender.defend(self.defense if self.victim is None else 'None', target=target_text, output=generation)
                     results.append({'context': target_text, triggers:generation})
                     print(f'{idx=}\n{text=}\n{generation=}')
                     self.evaluate([{'context': target_text, triggers:generation}], level='substring')
                 except RuntimeError as err:
+                    if self.victim is not None:
+                        raise  # Never silently omit failed defended trials.
                     print(f'{idx:} skip')
         return results
     
