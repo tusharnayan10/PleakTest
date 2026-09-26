@@ -60,7 +60,10 @@ Bundled sources were checked against the official repositories:
   the threshold. The mitigation in this source regenerates **without a system
   prompt**, and its actual response is returned to PLeak.
 
-No upstream defense source files are modified. Scoped, locked backend bindings
+The only upstream defense source change is a compatibility shim in
+`src/model.py`: pass `mean_resizing=False` only when the installed Transformers
+resize method supports it. Older versions retain their existing random
+initialization. No defense algorithm is modified. Scoped, locked backend bindings
 adapt PromptKeeper's model access and prompt serialization to PLeak; they are
 restored even on exceptions. Offline fit loading replaces its fixed relative
 cache directory. Calibrations must be produced with this same PLeak backend;
@@ -230,3 +233,13 @@ bash update_pleak.sh /path/to/PleakTest
 The script clones `PleakD` if the destination is absent, or fetches and switches
 a clean checkout to that branch, allowing only a fast-forward. It refuses dirty
 checkouts and unexpected origins; it does not reset or discard work.
+
+### Older Transformers: `mean_resizing` error
+
+Pull the latest `PleakD` update and rerun preparation. The compatibility shim
+omits the unsupported resize keyword on older versions. Preparation now checks
+that each subprocess actually produced its required files, even when upstream
+logs an error and exits with status zero. An incomplete run missing `params.json`
+or its candidate tensors is retried; no artifact-directory deletion is needed.
+This fixes the reported resize error, not a guarantee that every other API in
+the bundled defense supports historical Transformers versions.

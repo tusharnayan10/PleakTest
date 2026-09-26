@@ -1,4 +1,5 @@
 import logging
+import inspect
 
 import torch
 from transformers import (AutoModelForCausalLM, AutoTokenizer,
@@ -127,7 +128,7 @@ class Model():
 
         new_pad_token = "<|pad|>"
         self.tokenizer.add_special_tokens({"pad_token": new_pad_token})
-        self.model.resize_token_embeddings(len(self.tokenizer), mean_resizing=False)
+        self._resize_token_embeddings(len(self.tokenizer))
         self.model.config.pad_token_id = self.tokenizer.pad_token_id
         self.logger.debug("Added pad token and resized token embeddings.")
 
@@ -136,6 +137,15 @@ class Model():
 
         self.vocab_size = len(self.tokenizer)
 
+
+    def _resize_token_embeddings(self, size):
+        # Older Transformers versions already use random initialization and do
+        # not expose mean_resizing. Avoid catching unrelated internal TypeErrors.
+        resize = self.model.resize_token_embeddings
+        kwargs = {}
+        if "mean_resizing" in inspect.signature(resize).parameters:
+            kwargs["mean_resizing"] = False
+        return resize(size, **kwargs)
 
     def generate_logits(
         self,

@@ -11,6 +11,16 @@ import sys
 from DefenseAdapters import ROOT, context_key
 
 
+def run_artifact_stage(command, expected_files):
+    subprocess.run(command, cwd=ROOT / 'prompt_obfuscation', check=True)
+    missing = [str(path) for path in expected_files if not path.is_file()]
+    if missing:
+        raise RuntimeError(
+            f"{command[1]} finished without required artifacts: {', '.join(missing)}. "
+            "The upstream script may have logged an error and exited successfully. "
+            "Check the first ERROR/traceback above, fix it, and rerun preparation.")
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('dataset')
@@ -74,18 +84,19 @@ def main():
         directory.mkdir(exist_ok=True)
         if args.defense == 'PromptObfuscation':
             params_path, tensor_path = directory / 'params.json', directory / 'best_candidate.pt'
-            if not params_path.exists():
-                subprocess.run([sys.executable, 'obfuscate.py', '--model_name', model_id,
+            candidates_path = directory / 'obfuscated_system_prompt_list.pt'
+            if not params_path.is_file() or not candidates_path.is_file():
+                run_artifact_stage([sys.executable, 'obfuscate.py', '--model_name', model_id,
                     '--system_prompt', context, '--obfuscation_method', args.method,
                     '--dataset_name', args.obfuscation_dataset,
                     '--dataset_size', str(args.obfuscation_dataset_size),
-                    '--output_dir', str(directory)], cwd=ROOT / 'prompt_obfuscation', check=True)
+                    '--output_dir', str(directory)], [params_path, candidates_path])
             params = json.loads(params_path.read_text())
             if params['model_name'] != model_id or params['obfuscation_method'] != args.method:
                 raise ValueError('Existing obfuscation run has a different model/method; use a new directory')
             if not tensor_path.exists():
-                subprocess.run([sys.executable, 'evaluate_obfuscation.py', '--results_dir', str(directory)],
-                               cwd=ROOT / 'prompt_obfuscation', check=True)
+                run_artifact_stage([sys.executable, 'evaluate_obfuscation.py', '--results_dir', str(directory)],
+                                   [tensor_path])
             manifest['contexts'][key] = {'params': str(params_path.relative_to(output)),
                                          'tensor': str(tensor_path.relative_to(output))}
         else:
