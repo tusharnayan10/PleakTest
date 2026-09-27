@@ -274,3 +274,12 @@ encoder, all-pairs cosine matrix, and averaging. It no longer imports the newer
 `SimilarityFunction` enum or calls `model.similarity`. The standard encoder is
 loaded without the newer `trust_remote_code` constructor argument. No PLeak
 metric is modified, and saved obfuscation candidates can be reused.
+
+### Saved soft-prompt evaluation dtype
+
+Both official replacement-generation paths (`generate_model_responses_replace`
+and `precompute_model_outputs_replace`) cast a local copy of the saved prompt
+to the victim input embeddings' dtype/device before concatenation. This permits
+evaluation of FP32 optimizer checkpoints with FP16/BF16 models without changing
+the saved tensors or promoting model inputs to FP32. Hard token IDs are unchanged.
+Existing saved candidates can be evaluated without repeating training.

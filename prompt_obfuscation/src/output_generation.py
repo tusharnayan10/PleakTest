@@ -144,11 +144,18 @@ def precompute_model_outputs_replace(
             pad_token_id, model_wrapper.name_or_path
         )
 
+        prompt_for_generation = sys_prompt_obf
         if is_soft_prompt_method:
             input_batch = model_wrapper.get_embeddings(input_batch)
+            # Saved soft prompts may be FP32 Adam master parameters. Match the
+            # victim embeddings before concatenation to avoid promoting inputs.
+            # Keep the saved/master tensor unchanged.
+            prompt_for_generation = sys_prompt_obf.to(
+                device=input_batch.device, dtype=input_batch.dtype
+            )
 
         input_batch = replace_sys_prompt_batch(
-            sys_prompt_obf, input_batch, sys_prompt_indices_batch
+            prompt_for_generation, input_batch, sys_prompt_indices_batch
         )
 
         attention_mask = update_attention_mask_batch(
@@ -298,11 +305,18 @@ def generate_model_responses_replace(
             pad_token_id, model_wrapper.name_or_path
         )
 
+        prompt_for_generation = sys_prompt_obf
         if is_soft_prompt_method:
             input_batch = model_wrapper.get_embeddings(input_batch)
+            # Saved soft prompts may be FP32 Adam master parameters. Match the
+            # victim embeddings before concatenation to avoid promoting inputs.
+            # Keep the saved/master tensor unchanged.
+            prompt_for_generation = sys_prompt_obf.to(
+                device=input_batch.device, dtype=input_batch.dtype
+            )
         
         input_batch = replace_sys_prompt_batch(
-            sys_prompt_obf, input_batch, sys_prompt_indices_batch
+            prompt_for_generation, input_batch, sys_prompt_indices_batch
         )
 
         attention_mask = update_attention_mask_batch(
