@@ -290,3 +290,12 @@ Existing saved candidates can be evaluated without repeating training.
 before indexing, rather than relying on the sampler/default CUDA device. It
 retains the official CPU return value and dtype. This handles a different
 embedding placement under `device_map="auto"` without changing saved artifacts.
+
+### Soft-prompt beam sampling across GPUs
+
+`Model.generate_output` aligns its input tensor and attention mask with
+`model.device` before calling generation. Transformers 4.37.2 creates the
+bookkeeping token IDs for embedding-only generation on that device; using a
+different sampler device can split beam scores and model outputs across GPUs.
+Accelerate layer dispatch remains enabled. PLeak's three beams, sampling
+parameters, token allowance, and saved artifacts are unchanged.

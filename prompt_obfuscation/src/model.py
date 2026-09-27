@@ -235,6 +235,11 @@ class Model():
         Returns:
             (torch.Tensor): A tensor of generated output sequences.
         """
+        # Older Transformers creates soft-prompt bookkeeping IDs on model.device.
+        # Beam scores follow those IDs; inputs and the attention mask must start
+        # there too. Accelerate still dispatches individual layers as configured.
+        input_tensor = input_tensor.to(device=self.model.device)
+        attention_mask = attention_mask.to(device=self.model.device)
         with torch.no_grad():
             base_gen_settings = {
                 "attention_mask": attention_mask,
