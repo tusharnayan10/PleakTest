@@ -254,3 +254,14 @@ obfuscation objective are unchanged. Preparation also passes the official
 instead of being prepended to the protected PLeak context. Existing artifacts
 with extra system instructions are rejected; retrain those in a new directory.
 Failed runs with no params/candidate artifacts can simply be retried.
+
+### CPU Adam: `addcdiv_cpu_out` not implemented for Half
+
+The official embedding accessor returns CPU tensors in the victim's dtype. On
+older PyTorch, Adam cannot update these CPU float16 tensors. Soft obfuscation
+now keeps its trainable prompt and Adam state in float32, and casts the prompt
+back to the input-embedding dtype for each differentiable replacement. The
+victim weights/dtype, objective, learning rate, epsilon, and iteration schedule
+remain unchanged. This is an optimizer-precision fix in `obfuscate.py`; it does
+not change PLeak. The failed run did not save precomputed outputs, so retrying
+will repeat precomputation.

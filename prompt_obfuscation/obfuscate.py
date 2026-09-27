@@ -210,7 +210,9 @@ def obfuscate_soft_prompt(
             - A list of the optimized soft prompt embeddings after each iteration.
             - A list of the training loss at each step.
     """
-    sys_prompt_obf_emb = model_wrapper.get_embeddings(sys_prompt_obf).detach()
+    # get_embeddings returns CPU tensors in the model's dtype. Keep the Adam
+    # parameter/state in float32: CPU Adam in older PyTorch cannot update Half.
+    sys_prompt_obf_emb = model_wrapper.get_embeddings(sys_prompt_obf).detach().float()
     sys_prompt_obf_emb = sys_prompt_obf_emb.requires_grad_(True)
     optimizer = torch.optim.Adam([sys_prompt_obf_emb], eps=1e-3, lr=lr)
 
@@ -256,7 +258,10 @@ def obfuscate_soft_prompt(
                 # Replace the system prompt with the obfuscated version
                 base_embedded_input_ids = model_wrapper.get_embeddings(input_ids_batch)
                 base_embedded_input_ids = replace_sys_prompt_batch(
-                    sys_prompt_obf_emb, base_embedded_input_ids, sys_prompt_indices_batch
+                    # This differentiable cast keeps the victim forward pass in
+                    # its original dtype while gradients reach the FP32 master.
+                    sys_prompt_obf_emb.to(dtype=base_embedded_input_ids.dtype),
+                    base_embedded_input_ids, sys_prompt_indices_batch
                 )
                 # Update the attention mask to fit the obfuscated system prompt
                 base_attention_mask = update_attention_mask_batch(
