@@ -265,3 +265,12 @@ victim weights/dtype, objective, learning rate, epsilon, and iteration schedule
 remain unchanged. This is an optimizer-precision fix in `obfuscate.py`; it does
 not change PLeak. The failed run did not save precomputed outputs, so retrying
 will repeat precomputation.
+
+### Older sentence-transformers: missing `SimilarityFunction`
+
+The obfuscation candidate-selection cosine metric uses the longstanding
+`sentence_transformers.util.cos_sim` API with the same `all-mpnet-base-v2`
+encoder, all-pairs cosine matrix, and averaging. It no longer imports the newer
+`SimilarityFunction` enum or calls `model.similarity`. The standard encoder is
+loaded without the newer `trust_remote_code` constructor argument. No PLeak
+metric is modified, and saved obfuscation candidates can be reused.

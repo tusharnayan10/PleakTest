@@ -12,7 +12,7 @@ from nltk.tokenize.nist import NISTTokenizer
 from nltk.translate import meteor_score
 from nltk.translate.nist_score import corpus_nist
 from rouge_score import rouge_scorer, scoring
-from sentence_transformers import SentenceTransformer, SimilarityFunction
+from sentence_transformers import SentenceTransformer, util
 from tqdm import tqdm
 
 from src.utils import get_gpu_utilization
@@ -326,8 +326,9 @@ def cosine_similarity(
     """Computes the average cosine similarity using sentence-transformer embeddings."""
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model = SentenceTransformer("all-mpnet-base-v2", trust_remote_code=True, device=device) 
-    model.similarity_fn_name = SimilarityFunction.COSINE
+    # This standard encoder needs no remote code. util.cos_sim also supports
+    # older sentence-transformers without SimilarityFunction/model.similarity.
+    model = SentenceTransformer("all-mpnet-base-v2", device=device)
     similarities_all = []
     
     for pred_list_idx, pred_list in enumerate(predictions):
@@ -335,7 +336,7 @@ def cosine_similarity(
         try: 
             pred_embeddings = model.encode(pred_list, convert_to_tensor=True)
             ref_embeddings = model.encode(references[pred_list_idx], convert_to_tensor=True)
-            similarities = model.similarity(pred_embeddings, ref_embeddings)
+            similarities = util.cos_sim(pred_embeddings, ref_embeddings)
             similarities = similarities.cpu().numpy()
             score = np.mean(similarities).item()
         except Exception as e:
