@@ -203,6 +203,9 @@ class Model():
     ):
         """Retrieves the embeddings for a given tensor of token IDs."""
         embedding_layer = self.model.get_input_embeddings()
+        # Accelerate may place embeddings on a different device than the
+        # sampler/default CUDA device. Index on the weights' actual device.
+        input_ids = input_ids.to(device=embedding_layer.weight.device)
         return embedding_layer.weight[input_ids].cpu()
     
     def get_embedding_matrix(

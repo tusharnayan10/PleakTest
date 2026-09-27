@@ -283,3 +283,10 @@ to the victim input embeddings' dtype/device before concatenation. This permits
 evaluation of FP32 optimizer checkpoints with FP16/BF16 models without changing
 the saved tensors or promoting model inputs to FP32. Hard token IDs are unchanged.
 Existing saved candidates can be evaluated without repeating training.
+
+### Embedding lookup with multiple visible GPUs
+
+`Model.get_embeddings` moves token IDs to the actual embedding weight device
+before indexing, rather than relying on the sampler/default CUDA device. It
+retains the official CPU return value and dtype. This handles a different
+embedding placement under `device_map="auto"` without changing saved artifacts.
