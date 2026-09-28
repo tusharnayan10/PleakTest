@@ -158,6 +158,9 @@ class PromptKeeperWrapper:
             # Upstream writes pickle; load only locally prepared/trusted fit files.
             with self.artifacts.resolve(entry['fit']).open('rb') as stream:
                 stats = pickle.load(stream)
+            for mode in ('zero', 'other'):
+                self.hypothesis.validate_calibration_samples(
+                    stats[mode]['raw'], entry.get('expected_samples', 10))
             zero, other = stats['zero']['fitted_params'], stats['other']['fitted_params']
             if any(not math.isfinite(float(x)) for x in list(zero) + list(other)) or zero[1] <= 0 or other[1] <= 0 or zero[1] == other[1]:
                 raise ValueError('Invalid or degenerate PromptKeeper calibration; prepare more calibration samples')

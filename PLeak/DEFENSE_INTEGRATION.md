@@ -299,3 +299,15 @@ bookkeeping token IDs for embedding-only generation on that device; using a
 different sampler device can split beam scores and model outputs across GPUs.
 Accelerate layer dispatch remains enabled. PLeak's three beams, sampling
 parameters, token allowance, and saved artifacts are unchanged.
+
+### Incomplete PromptKeeper calibration lists
+
+Offline question-list generation now has its own `--calibration-query-tokens`
+allowance (default 1024). Answer generation and attacker response budgets are
+unchanged. The upstream fitting routine accepts common numbered-list formats
+and a final line without a newline, and requires exactly the requested question
+count. Fitting rejects missing, nonfinite, or constant likelihood samples; the
+adapter also validates loaded samples before computing a threshold. Rebuild
+old undersampled calibrations in a fresh directory such as `artifacts/keeper-v2`
+to avoid reusing cached incomplete query lists and responses. The original
+normal fitting, likelihood-ratio decision, and regeneration rule are unchanged.

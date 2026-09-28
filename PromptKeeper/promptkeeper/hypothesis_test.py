@@ -1,4 +1,5 @@
 import os
+import math
 import gc
 import re
 import sys
@@ -174,8 +175,32 @@ def visualize(config, saving_dir, fit_result):
     logging.info(f"[Fit] Plot for visualization generated.")
 
 
+def parse_calibration_questions(response, expected_count):
+    # Accept 1:, 1., 1), and Markdown-bold numbering, including a final
+    # line without a newline. Do not invent missing questions or reuse entries.
+    pattern = r'^\s*(?:\*\*)?\d+[.):](?:\*\*)?\s+(.+?)\s*$'
+    questions = re.findall(pattern, response, re.MULTILINE)[:expected_count]
+    if len(questions) != expected_count:
+        raise ValueError(
+            f'Calibration requires {expected_count} numbered questions but parsed '
+            f'{len(questions)}. Inspect zero_question.txt/other_question.txt; '
+            'use a fresh output directory and increase --calibration-query-tokens '
+            'if the generated list was truncated.')
+    return questions
+
+
+def validate_calibration_samples(values, expected_count):
+    if len(values) != expected_count or len(values) < 2:
+        raise ValueError(f'Expected {expected_count} calibration samples; got {len(values)}')
+    if not all(math.isfinite(float(value)) for value in values):
+        raise ValueError('Calibration contains nonfinite likelihoods')
+    if len(set(float(value) for value in values)) < 2:
+        raise ValueError('Calibration likelihoods have zero variance; prepare fresh samples')
+
+
 def fit_distribution(config, system_prompt, saving_dir,
-                     questions_dir=None, answer_generate_kwargs=None):
+                     questions_dir=None, answer_generate_kwargs=None,
+                     question_generate_kwargs=None):
     model_id = config.model
     num_queries_per_case = config.num_queries_per_case
     num_repeat = config.num_responses_per_query
@@ -226,14 +251,13 @@ def fit_distribution(config, system_prompt, saving_dir,
             # pass
             response = get_text_generation(
                 model_id=model_id,
-                user_query=query_for_questions
+                user_query=query_for_questions,
+                generate_kwargs=question_generate_kwargs
             )
             with open(question_path, 'w') as fout:
                 fout.write(response)
 
-        pattern = r'^[ ]*\d+[.:]\s(.*)\n'
-        matches = re.findall(pattern, response, re.MULTILINE)
-        user_query_list = matches[:config.num_queries_per_case]
+        user_query_list = parse_calibration_questions(response, num_queries_per_case)
         logging.info(f'[Fit] Questions for {mode} prepared. '
                      f'They are:\n{user_query_list}')
 
@@ -245,7 +269,6 @@ def fit_distribution(config, system_prompt, saving_dir,
                 if save_response_path is not None:
                     mll_text = save_response_path.split("_")[-1].split(".txt")[0]
                     mll = float(mll_text)
-                    mll_list.append(mll)
                 else:
                     if mode == "zero":
                         response = get_text_generation(
@@ -278,8 +301,11 @@ def fit_distribution(config, system_prompt, saving_dir,
                              f'{repeat + 1}/{num_repeat} '
                              f'of question {q_idx + 1}/{len(user_query_list)}.')
 
+        validate_calibration_samples(mll_list, num_queries_per_case * num_repeat)
         if config.dist == "norm":
             mu, sigma = norm.fit(mll_list)
+            if not math.isfinite(float(sigma)) or sigma <= 0:
+                raise ValueError('Invalid calibration standard deviation; prepare fresh samples')
             fit_result[mode] = {
                 "raw": mll_list,
                 "fitted_params": [mu, sigma],

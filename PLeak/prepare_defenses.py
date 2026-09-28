@@ -44,8 +44,12 @@ def main():
     parser.add_argument('--significance', type=float, default=0.05)
     parser.add_argument('--calibration-queries', type=int, default=10)
     parser.add_argument('--calibration-repeats', type=int, default=1)
+    parser.add_argument('--calibration-query-tokens', type=int, default=1024,
+                        help='Offline question-list generation allowance; does not change attack budget')
     parser.add_argument('--limit', type=int, help='Prepare only first N contexts for smoke tests, not full evaluation')
     args = parser.parse_args()
+    if args.calibration_queries < 2 or args.calibration_repeats < 1 or args.calibration_query_tokens < 1:
+        parser.error('Use at least 2 calibration queries, 1 repeat, and a positive query token allowance')
     import numpy as np
     import torch
     from DataFactory import DataFactory
@@ -114,10 +118,14 @@ def main():
                 'num_responses_per_query': args.calibration_repeats,
                 'num_queries_per_case': args.calibration_queries, 'dist': 'norm'})
             with wrapper.backend(), torch.no_grad():
-                wrapper.hypothesis.fit_distribution(config, context, str(directory))
+                question_options = sampler.generation_kwargs()
+                question_options['max_new_tokens'] = args.calibration_query_tokens
+                wrapper.hypothesis.fit_distribution(
+                    config, context, str(directory), question_generate_kwargs=question_options)
                 wrapper.hypothesis.plt.close('all')
             manifest['contexts'][key] = {'fit': str((directory / 'fit_result.pkl').relative_to(output)),
-                                         'format': 'pleak-concat-v1'}
+                                         'format': 'pleak-concat-v1',
+                                         'expected_samples': args.calibration_queries * args.calibration_repeats}
         manifest_path.write_text(json.dumps(manifest, indent=2) + '\n')
     print(f'Artifacts: {manifest_path}')
 
